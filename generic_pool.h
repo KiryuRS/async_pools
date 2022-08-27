@@ -62,7 +62,7 @@ namespace regit::async
 
     void start();
     void stop();
-    void post(worker_t work);
+    void post(work_t work);
 
   private:
     void worker_func() noexcept;
