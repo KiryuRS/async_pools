@@ -23,14 +23,14 @@ namespace regit::async
         typename ... ArgsT,
         // prevent anther instance of naive_thread_wrapper from calling this constructor
         std::enable_if_t<std::is_constructible_v<std::thread, ArgsT...>, int> = 0>
-      naive_thread_wrapper(ArgsT&& ... work)
+      naive_thread_wrapper(ArgsT&& ... work) noexcept
         : m_thread{std::forward<ArgsT>(work)...}
       {
       }
 
       naive_thread_wrapper(naive_thread_wrapper&&) noexcept = default;
 
-      ~naive_thread_wrapper()
+      ~naive_thread_wrapper() noexcept
       {
         if (m_thread.joinable())
           m_thread.join();
@@ -55,9 +55,9 @@ namespace regit::async
     using worker_t = std::function<void()>;
     using thread_factory_t = std::function<ThreadT(worker_t)>;
 
-    generic_thread_pool(size_t size);
+    generic_thread_pool(size_t size) noexcept;
     template <typename ThreadFactoryT>
-    generic_thread_pool(size_t size, ThreadFactoryT&& threadFactory);
+    generic_thread_pool(size_t size, ThreadFactoryT&& threadFactory) noexcept;
     ~generic_thread_pool();
 
     void start();
@@ -65,7 +65,7 @@ namespace regit::async
     void post(work_t work);
 
   private:
-    void worker_func() noexcept;
+    void worker_func();
 
     std::mutex m_mutex;
     std::condition_variable m_condition;
@@ -79,7 +79,7 @@ namespace regit::async
   };
 
   template <typename ThreadT>
-  generic_thread_pool<ThreadT>::generic_thread_pool(size_t size)
+  generic_thread_pool<ThreadT>::generic_thread_pool(size_t size) noexcept
     : generic_thread_pool{
         size,
         [](worker_t joinPool) { return ThreadT{std::move(joinPool)}; }}
@@ -88,7 +88,7 @@ namespace regit::async
 
   template <typename ThreadT>
   template <typename ThreadFactoryT>
-  generic_thread_pool<ThreadT>::generic_thread_pool(size_t size, ThreadFactoryT&& threadFactory)
+  generic_thread_pool<ThreadT>::generic_thread_pool(size_t size, ThreadFactoryT&& threadFactory) noexcept
     : m_poolSize{size}
     , m_threadFactory{std::forward<ThreadFactoryT>(threadFactory)}
     , m_stopping{false}
@@ -145,9 +145,9 @@ namespace regit::async
   }
 
   template <typename ThreadT>
-  void generic_thread_pool<ThreadT>::worker_func() noexcept
+  void generic_thread_pool<ThreadT>::worker_func()
   {
-    // We just need a single thread to be ready for work
+    // we just need a single thread to be ready for work
     std::call_once(
       m_ready_flag,
       [this]
