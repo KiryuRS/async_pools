@@ -42,7 +42,7 @@ namespace regit::async
       std::thread m_thread;
     };
 
-    class work_policy final
+    class work_policy
     {
     public:
       void begin_work(const work_t& work) noexcept
@@ -88,7 +88,7 @@ namespace regit::async
 
     std::mutex m_mutex;
     std::condition_variable m_condition;
-    std::atomic_bool m_stopping, m_ready;
+    std::atomic_bool m_stopping;
     std::queue<detail::work_t> m_jobs;
     std::vector<ThreadT> m_threads;
     thread_factory_t m_threadFactory;
@@ -111,7 +111,6 @@ namespace regit::async
     : m_poolSize{size}
     , m_threadFactory{std::forward<ThreadFactoryT>(threadFactory)}
     , m_stopping{false}
-    , m_ready{false}
   {
     static_assert(std::is_same_v<ThreadT, std::result_of_t<ThreadFactoryT(std::function<void()>)>>);
   }
@@ -152,10 +151,6 @@ namespace regit::async
   template <typename ThreadT, typename WorkPolicyT>
   void generic_thread_pool<ThreadT, WorkPolicyT>::post(detail::work_t work)
   {
-    // "locks" function to allow first thread to begin work before post
-    // not ideal and probably should be changed to be more elegant?
-    while (!m_ready);
-
     {
       std::lock_guard<std::mutex> lock{m_mutex};
       m_jobs.emplace(std::move(work));
@@ -166,15 +161,6 @@ namespace regit::async
   template <typename ThreadT, typename WorkPolicyT>
   void generic_thread_pool<ThreadT, WorkPolicyT>::worker_func()
   {
-    // we just need a single thread to be ready for work
-    std::call_once(
-      m_ready_flag,
-      [this]
-      {
-        bool expected = false;
-        m_ready.compare_exchange_strong(expected, true);
-      });
-
     while (!m_stopping)
     {
       detail::work_t work;
